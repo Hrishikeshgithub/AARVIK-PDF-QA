@@ -26,10 +26,17 @@ DB_NAME = os.getenv("DB_NAME")
 GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY")
 
 # Configure the API and dynamically select a supported model
-genai.configure(api_key=os.getenv("GOOGLE_AI_API_KEY"))
-available_models = [m.name for m in genai.list_models() if "gemini" in m.name.lower() and "generateContent" in m.supported_generation_methods]
-model_to_use = next((m for m in ["gemini-2.5-pro", "gemini-2.0-flash"] if m in available_models), "gemini-2.0-flash")
-llm = ChatGoogleGenerativeAI(model=model_to_use, google_api_key=os.getenv("GOOGLE_AI_API_KEY"))
+try:
+    genai.configure(api_key=GOOGLE_AI_API_KEY)
+    available_models = [m.name for m in genai.list_models() if "gemini" in m.name.lower() and "generateContent" in m.supported_generation_methods]
+    model_to_use = next((m for m in ["gemini-2.5-pro", "gemini-2.0-flash"] if m in available_models), "gemini-2.0-flash")
+    logger.info(f"Selected Gemini model: {model_to_use}")
+    llm = ChatGoogleGenerativeAI(model=model_to_use, google_api_key=GOOGLE_AI_API_KEY)
+except Exception as e:
+    logger.error(f"Error initializing Gemini model: {str(e)}")
+    # Fallback to a default model or raise error
+    model_to_use = "gemini-2.0-flash"
+    llm = ChatGoogleGenerativeAI(model=model_to_use, google_api_key=GOOGLE_AI_API_KEY)
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -169,3 +176,14 @@ async def delete_session(session_id: str):
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+@app.on_event("startup")
+async def startup_event():
+    logger.debug("Application startup started")
+    try:
+        # Test connections
+        logger.debug("GOOGLE_AI_API_KEY: " + os.getenv("GOOGLE_AI_API_KEY", "Not set"))
+        logger.debug("MONGO_URL: " + os.getenv("MONGO_URL", "Not set"))
+        # Add more checks if needed
+        logger.debug("Startup completed successfully")
+    except Exception as e:
+        logger.error(f"Startup error: {str(e)}")
